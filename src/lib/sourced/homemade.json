@@ -1,0 +1,423 @@
+[
+  {
+    "name": "Low-carb hoisin sauce",
+    "sourceUrl": "https://diabeticchefsrecipes.com/low-carb-hoisin-sauce/",
+    "servings": 4.0,
+    "lines": [
+      {
+        "written": "1/4 C tamari",
+        "ingredient": "tamari",
+        "servings": 4.0,
+        "note": "1/4 cup = 4 Tbsp"
+      },
+      {
+        "written": "3 T allulose",
+        "ingredient": "allulose (pure)",
+        "servings": 3.0,
+        "note": "3 Tbsp = 9 tsp"
+      },
+      {
+        "written": "3 T peanut butter",
+        "ingredient": "peanut butter",
+        "servings": 0.48,
+        "note": "3 Tbsp = 48 g (USDA 16 g/Tbsp)"
+      },
+      {
+        "written": "1 T tahini",
+        "ingredient": "tahini",
+        "servings": 0.15,
+        "note": "1 Tbsp = 15 g (USDA)"
+      },
+      {
+        "written": "1 T rice vinegar",
+        "ingredient": "rice vinegar",
+        "servings": 1.0,
+        "note": "1 Tbsp"
+      },
+      {
+        "written": "1/2 t chili garlic sauce",
+        "ingredient": "chili garlic sauce",
+        "servings": 0.5,
+        "note": "1/2 tsp"
+      },
+      {
+        "written": "1/4 t crushed garlic",
+        "ingredient": "garlic minced",
+        "servings": 0.25,
+        "note": "1/4 tsp"
+      },
+      {
+        "written": "1/4 t five spice",
+        "ingredient": "five spice powder",
+        "servings": 1.0,
+        "note": "1/4 tsp"
+      }
+    ]
+  },
+  {
+    "name": "Enchilada sauce (Cary Kelly)",
+    "sourceUrl": "https://x.com/CaryKelly11/status/1790832973593387233",
+    "servings": null,
+    "lines": [
+      {
+        "written": "12 oz tomato sauce",
+        "ingredient": "tomato sauce (plain, no sugar)",
+        "servings": 5.4,
+        "note": "12 oz = 340.2 g"
+      },
+      {
+        "written": "1/2 t oregano",
+        "ingredient": "oregano",
+        "servings": 0.009,
+        "note": "1/2 tsp = 0.9 g (USDA)"
+      },
+      {
+        "written": "1/2 t paprika",
+        "ingredient": "paprika",
+        "servings": 0.0115,
+        "note": "1/2 tsp = 1.15 g (USDA)"
+      },
+      {
+        "written": "1/2 t garlic powder",
+        "ingredient": "garlic powder",
+        "servings": 0.0155,
+        "note": "1/2 tsp = 1.55 g (USDA)"
+      },
+      {
+        "written": "1/2 t onion powder",
+        "ingredient": "onion powder",
+        "servings": 0.012,
+        "note": "1/2 tsp = 1.2 g (USDA)"
+      },
+      {
+        "written": "1/2 t salt",
+        "ingredient": "salt",
+        "servings": 2.0,
+        "note": "1/2 tsp = 2 x 1/4 tsp"
+      },
+      {
+        "written": "1/2 t ancho chili powder",
+        "ingredient": "ancho powder",
+        "servings": 0.0135,
+        "note": "1/2 tsp = 1.35 g (USDA)"
+      },
+      {
+        "written": "1/4 t cayenne",
+        "ingredient": "cayenne",
+        "servings": 0.0045,
+        "note": "1/4 tsp = 0.45 g (USDA)"
+      },
+      {
+        "written": "1/4 t cumin",
+        "ingredient": "cumin",
+        "servings": 0.0053,
+        "note": "1/4 tsp = 0.53 g (USDA)"
+      }
+    ]
+  },
+  {
+    "name": "Queso dip (KetoCarnivore9)",
+    "sourceUrl": "https://ketocarnivore9.wordpress.com/2023/08/30/queso-dip/",
+    "servings": null,
+    "lines": [
+      {
+        "written": "1 lb ground beef",
+        "ingredient": "ground beef 80/20",
+        "servings": 1.0,
+        "note": "1 lb"
+      },
+      {
+        "written": "1/2 C heavy cream",
+        "ingredient": "heavy cream",
+        "servings": 8.0,
+        "note": "1/2 cup = 8 Tbsp"
+      },
+      {
+        "written": "8 oz shredded cheddar",
+        "ingredient": "cheddar",
+        "servings": 8.1,
+        "note": "8 oz = 226.8 g"
+      },
+      {
+        "written": "2 oz goat cheese",
+        "ingredient": "goat cheese",
+        "servings": 2.025,
+        "note": "2 oz = 56.7 g"
+      },
+      {
+        "written": "1 small jalapeno",
+        "ingredient": "jalapeno",
+        "servings": 0.14,
+        "note": "1 small = 14 g (USDA)"
+      },
+      {
+        "written": "1/2 t cumin",
+        "ingredient": "cumin",
+        "servings": 0.0105,
+        "note": "1/2 tsp = 1.05 g (USDA)"
+      },
+      {
+        "written": "1/2 t garlic powder",
+        "ingredient": "garlic powder",
+        "servings": 0.0155,
+        "note": "1/2 tsp = 1.55 g (USDA)"
+      },
+      {
+        "written": "1/2 t onion powder",
+        "ingredient": "onion powder",
+        "servings": 0.012,
+        "note": "1/2 tsp = 1.2 g (USDA)"
+      },
+      {
+        "written": "1/2 t paprika",
+        "ingredient": "paprika",
+        "servings": 0.0115,
+        "note": "1/2 tsp = 1.15 g (USDA)"
+      },
+      {
+        "written": "1/2 t chili powder",
+        "ingredient": "chili powder",
+        "servings": 2.0,
+        "note": "1/2 tsp = 2 x 1/4 tsp"
+      },
+      {
+        "written": "1/4 t cayenne",
+        "ingredient": "cayenne",
+        "servings": 0.0045,
+        "note": "1/4 tsp = 0.45 g (USDA)"
+      },
+      {
+        "written": "2 T hot sauce",
+        "ingredient": "hot sauce",
+        "servings": 0.282,
+        "note": "2 Tbsp = 28.2 g (USDA 4.7 g/tsp)"
+      }
+    ]
+  },
+  {
+    "name": "Keto blue cheese dressing",
+    "sourceUrl": "https://diabeticchefsrecipes.com/keto-blue-cheese-dressing/",
+    "servings": 8.0,
+    "lines": [
+      {
+        "written": "1/2 C sour cream",
+        "ingredient": "sour cream",
+        "servings": 4.0,
+        "note": "1/2 cup = 8 Tbsp"
+      },
+      {
+        "written": "1/2 C mayo",
+        "ingredient": "mayonnaise",
+        "servings": 8.0,
+        "note": "1/2 cup = 8 Tbsp"
+      },
+      {
+        "written": "2 T lemon juice",
+        "ingredient": "lemon juice",
+        "servings": 6.0,
+        "note": "2 Tbsp = 6 tsp"
+      },
+      {
+        "written": "1/2 t salt",
+        "ingredient": "salt",
+        "servings": 2.0,
+        "note": "1/2 tsp = 2 x 1/4 tsp"
+      },
+      {
+        "written": "1/4 t garlic powder",
+        "ingredient": "garlic powder",
+        "servings": 0.0078,
+        "note": "1/4 tsp = 0.78 g (USDA)"
+      },
+      {
+        "written": "1/4 t celery salt",
+        "ingredient": "celery salt",
+        "servings": 1.0,
+        "note": "1/4 tsp"
+      },
+      {
+        "written": "1/4 t pepper",
+        "ingredient": "black pepper",
+        "servings": 0.0058,
+        "note": "1/4 tsp = 0.58 g (USDA)"
+      },
+      {
+        "written": "1/4 t paprika",
+        "ingredient": "paprika",
+        "servings": 0.0058,
+        "note": "1/4 tsp = 0.58 g (USDA)"
+      },
+      {
+        "written": "4 oz blue cheese (for Roquefort)",
+        "ingredient": "blue cheese",
+        "servings": 4.05,
+        "note": "4 oz = 113.4 g"
+      }
+    ]
+  },
+  {
+    "name": "Keto Caesar dressing",
+    "sourceUrl": "https://diabeticchefsrecipes.com/keto-caesar-salad/",
+    "servings": null,
+    "lines": [
+      {
+        "written": "1 egg",
+        "ingredient": "eggs (large)",
+        "servings": 1.0,
+        "note": "1 large egg"
+      },
+      {
+        "written": "3 T lemon juice",
+        "ingredient": "lemon juice",
+        "servings": 9.0,
+        "note": "3 Tbsp = 9 tsp"
+      },
+      {
+        "written": "1 t crushed garlic",
+        "ingredient": "garlic minced",
+        "servings": 1.0,
+        "note": "1 tsp"
+      },
+      {
+        "written": "1 t Dijon",
+        "ingredient": "dijon",
+        "servings": 1.0,
+        "note": "1 tsp"
+      },
+      {
+        "written": "1 t Worcestershire (coconut aminos)",
+        "ingredient": "worcestershire alt (coconut aminos)",
+        "servings": 0.3333333333,
+        "note": "1 tsp = 1/3 Tbsp"
+      },
+      {
+        "written": "2 t anchovy paste (fillets)",
+        "ingredient": "anchovy",
+        "servings": 0.6666666667,
+        "note": "2 tsp estimated ~10 g of mashed fillets"
+      },
+      {
+        "written": "1/2 C olive oil",
+        "ingredient": "olive oil",
+        "servings": 8.0,
+        "note": "1/2 cup = 8 Tbsp"
+      },
+      {
+        "written": "1/2 C Parmesan",
+        "ingredient": "parmesan",
+        "servings": 12.0,
+        "note": "1/2 cup = 24 tsp = 12 x 2 tsp"
+      },
+      {
+        "written": "cracked pepper",
+        "ingredient": "black pepper",
+        "servings": 0,
+        "note": "to taste, negligible"
+      }
+    ]
+  },
+  {
+    "name": "Keto ranch dressing",
+    "sourceUrl": "https://diabeticchefsrecipes.com/keto-ranch-dressing/",
+    "servings": null,
+    "lines": [
+      {
+        "written": "2 T heavy cream",
+        "ingredient": "heavy cream",
+        "servings": 2.0,
+        "note": "2 Tbsp"
+      },
+      {
+        "written": "1 T buttermilk powder",
+        "ingredient": "buttermilk powder",
+        "servings": 0.3043478261,
+        "note": "1 Tbsp ~7 g"
+      },
+      {
+        "written": "1/2 C mayo",
+        "ingredient": "mayonnaise",
+        "servings": 8.0,
+        "note": "1/2 cup = 8 Tbsp"
+      },
+      {
+        "written": "1/4 C sour cream",
+        "ingredient": "sour cream",
+        "servings": 2.0,
+        "note": "1/4 cup = 4 Tbsp"
+      },
+      {
+        "written": "1 1/2 T dried parsley",
+        "ingredient": "parsley dried",
+        "servings": 0.024,
+        "note": "1.5 Tbsp = 2.4 g (USDA 1.6 g/Tbsp)"
+      },
+      {
+        "written": "1/2 T lemon juice",
+        "ingredient": "lemon juice",
+        "servings": 1.5,
+        "note": "1/2 Tbsp = 1.5 tsp"
+      },
+      {
+        "written": "1 t Maggi (coconut aminos)",
+        "ingredient": "worcestershire alt (coconut aminos)",
+        "servings": 0.3333333333,
+        "note": "1 tsp = 1/3 Tbsp"
+      },
+      {
+        "written": "1 t nutritional yeast",
+        "ingredient": "nutritional yeast",
+        "servings": 0.3333333333,
+        "note": "1 tsp = 1/3 Tbsp"
+      },
+      {
+        "written": "1/4 t garlic powder",
+        "ingredient": "garlic powder",
+        "servings": 0.0078,
+        "note": "1/4 tsp = 0.78 g (USDA)"
+      },
+      {
+        "written": "1/4 t onion powder",
+        "ingredient": "onion powder",
+        "servings": 0.006,
+        "note": "1/4 tsp = 0.6 g (USDA)"
+      },
+      {
+        "written": "1/4 t pepper",
+        "ingredient": "black pepper",
+        "servings": 0.0058,
+        "note": "1/4 tsp = 0.58 g (USDA)"
+      }
+    ]
+  },
+  {
+    "name": "Low-carb cranberry orange relish",
+    "sourceUrl": "https://diabeticchefsrecipes.com/low-carb-cranberry-orange-relish/",
+    "servings": null,
+    "lines": [
+      {
+        "written": "12 oz cranberries",
+        "ingredient": "cranberries (fresh)",
+        "servings": 3.402,
+        "note": "12 oz = 340.2 g"
+      },
+      {
+        "written": "1 medium Granny Smith apple",
+        "ingredient": "apple (Granny Smith)",
+        "servings": 1.82,
+        "note": "1 medium = 182 g (USDA)"
+      },
+      {
+        "written": "20 drops EZ-Sweetz",
+        "ingredient": "liquid sucralose",
+        "servings": 0,
+        "note": "drops, 0 macros"
+      },
+      {
+        "written": "1 T orange extract",
+        "ingredient": "orange extract",
+        "servings": 12.5,
+        "note": "1 Tbsp = 15 mL"
+      }
+    ]
+  }
+]

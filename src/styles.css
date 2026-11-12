@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f3ece4;
+  --surface: #fffaf4;
+  --ink: #2a211c;
+  --muted: #73655c;
+  --line: #e3d5c8;
+  --tomato: #9e2a2b;
+  --tomato-ink: #fff8f5;
+  --chip: #fffdfb;
+  --gold: #8a6a2f;
+  --gold-bg: #f4e7c6;
+  --sage: #2f6b45;
+  --sage-ink: #f3fff6;
+  --cook: #2f5f8a;
+  --cook-ink: #f4f8ff;
+  --shadow: 0 12px 32px rgb(74 42 24 / 8%);
+  --ph-main-a: #8d4034;
+  --ph-main-b: #5a261e;
+  --ph-side-a: #3e6a48;
+  --ph-side-b: #243c2b;
+  --ph-dessert-a: #a15b73;
+  --ph-dessert-b: #6c3144;
+  --ph-soup-a: #b56a32;
+  --ph-soup-b: #6e3c1c;
+  --ph-salad-a: #4f7a45;
+  --ph-salad-b: #2c4a2c;
+  --ph-sauce-a: #8d4d2e;
+  --ph-sauce-b: #5c2e1b;
+  --ph-snack-a: #b0863a;
+  --ph-snack-b: #6d5018;
+  --ph-breakfast-a: #c47b32;
+  --ph-breakfast-b: #7a4516;
+  --ph-bread-a: #c4a06a;
+  --ph-bread-b: #7a5a32;
+  --ph-howto-a: #5d534c;
+  --ph-howto-b: #322c28;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #161210;
+  --surface: #241c18;
+  --ink: #f6efe8;
+  --muted: #b5a69c;
+  --line: #3c312b;
+  --tomato: #e15d4c;
+  --tomato-ink: #2a100e;
+  --chip: #2c241f;
+  --gold: #e6c98a;
+  --gold-bg: #3d3218;
+  --sage: #8dcea8;
+  --sage-ink: #102117;
+  --cook: #8eb7e0;
+  --cook-ink: #102033;
+  --shadow: 0 14px 36px rgb(0 0 0 / 35%);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-tomato: var(--tomato);
+  --color-tomato-ink: var(--tomato-ink);
+  --color-chip: var(--chip);
+  --color-gold: var(--gold);
+  --color-gold-bg: var(--gold-bg);
+  --color-sage: var(--sage);
+  --color-sage-ink: var(--sage-ink);
+  --color-cook: var(--cook);
+  --color-cook-ink: var(--cook-ink);
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", Georgia, ui-serif, serif;
+  --radius-card: 1.15rem;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    min-height: 100vh;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--tomato) 28%, white);
+  }
+}
+
+@layer components {
+  .ph-main { background: linear-gradient(160deg, var(--ph-main-a), var(--ph-main-b)); }
+  .ph-side { background: linear-gradient(160deg, var(--ph-side-a), var(--ph-side-b)); }
+  .ph-dessert { background: linear-gradient(160deg, var(--ph-dessert-a), var(--ph-dessert-b)); }
+  .ph-soup { background: linear-gradient(160deg, var(--ph-soup-a), var(--ph-soup-b)); }
+  .ph-salad { background: linear-gradient(160deg, var(--ph-salad-a), var(--ph-salad-b)); }
+  .ph-sauce { background: linear-gradient(160deg, var(--ph-sauce-a), var(--ph-sauce-b)); }
+  .ph-snack { background: linear-gradient(160deg, var(--ph-snack-a), var(--ph-snack-b)); }
+  .ph-breakfast { background: linear-gradient(160deg, var(--ph-breakfast-a), var(--ph-breakfast-b)); }
+  .ph-bread { background: linear-gradient(160deg, var(--ph-bread-a), var(--ph-bread-b)); }
+  .ph-howto { background: linear-gradient(160deg, var(--ph-howto-a), var(--ph-howto-b)); }
+}
+
+.chip-row {
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
