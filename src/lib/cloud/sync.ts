@@ -1,12 +1,14 @@
 import { muteCloud, setCloudSink, type CloudPatch } from "@/lib/cloud/bridge";
 import { FIREBASE_WEB } from "@/lib/cloud/firebase-web";
 import type { HistoryEntry } from "@/lib/plans/history";
-import { householdGoal, type MealPlan, type SavedMacroGoal, type SavedPerson } from "@/lib/plans/model";
+import { householdGoal, type MealPlan, type PersonGroup, type PlanBatch, type PlanDefaults, type PlanTemplate, type SavedMacroGoal, type SavedPerson } from "@/lib/plans/model";
 import type { MacroLog } from "@/lib/plans/logs";
-import { loadSupplements, saveSupplements } from "@/lib/plans/supplements";
-import { loadPlateTemplates, loadToppings, savePlateTemplates, saveToppings } from "@/lib/plans/toppings";
+import { loadSupplementRanks, loadSupplements, saveSupplementRanks, saveSupplements, type SupplementRank } from "@/lib/plans/supplements";
+import { loadLeftovers, saveLeftovers } from "@/lib/plans/leftovers";
+import { loadMeatStars, loadPlateTemplates, loadToppingStars, loadToppings, saveMeatStars, savePlateTemplates, saveToppingStars, saveToppings, type ToppingStars } from "@/lib/plans/toppings";
 import type { Recipe } from "@/lib/recipes/types";
-import { readGroceryLists, readMacroLogs, readPlans, readSavedMacroGoals, readSavedPeople, writeGroceryLists, writeMacroLogs, writePlans, writeSavedMacroGoal, writeSavedMacroGoals, writeSavedPeople } from "@/lib/recipes/idb";
+import { stampGrocerySources } from "@/lib/plans/grocery";
+import { readGroceryLists, readMacroLogs, readPersonGroups, readPlanDefaults, readPlans, readSavedMacroGoals, readSavedPeople, writeGroceryLists, writeMacroLogs, writePersonGroups, writePlanDefaults, writePlans, writeSavedMacroGoal, writeSavedMacroGoals, writeSavedPeople } from "@/lib/recipes/idb";
 
 const CONFIG = FIREBASE_WEB;
 
@@ -29,6 +31,8 @@ const statusListeners = new Set<(message: string) => void>();
 const favoriteListeners = new Set<(uids: string[] | null) => void>();
 const historyListeners = new Set<(entries: HistoryEntry[]) => void>();
 let historyEntries: HistoryEntry[] = [];
+const templateListeners = new Set<(entries: PlanTemplate[]) => void>();
+let templateEntries: PlanTemplate[] = [];
 const versionListeners = new Set<(versions: Recipe[]) => void>();
 let versionWriteAt = 0;
 let versionUploadPending = false;
@@ -104,24 +108,44 @@ function hasHouseholdData(data: RemoteRecord | undefined) {
 }
 
 async function localMemory() {
-  const [plans, groceryLists, macroGoals, people, macroLogs] = await Promise.all([
+  const [plans, groceryLists, macroGoals, people, peopleGroups, planDefaults, macroLogs] = await Promise.all([
     readPlans(),
     readGroceryLists(),
     readSavedMacroGoals(),
     readSavedPeople(),
+    readPersonGroups(),
+    readPlanDefaults(),
     readMacroLogs(),
   ]);
   return {
     plans,
-    groceryLists,
+    groceryLists: stampGrocerySources(groceryLists),
     macroGoal: householdGoal(macroGoals) ?? macroGoals[0] ?? null,
     macroGoals,
     people,
+    peopleGroups,
+    planDefaults,
     macroLogs,
     supplements: loadSupplements(),
+    supplementRanks: loadSupplementRanks(),
     toppings: loadToppings(),
     plateTemplates: loadPlateTemplates(),
+    meatStars: loadMeatStars(),
+    toppingStars: loadToppingStars(),
+    leftovers: loadLeftovers(),
   };
+}
+
+function isToppingStars(value: unknown): value is ToppingStars {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<ToppingStars>;
+  return typeof record.personId === "string" && Array.isArray(record.ids);
+}
+
+function isSupplementRank(value: unknown): value is SupplementRank {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<SupplementRank>;
+  return typeof record.personId === "string" && (Array.isArray(record.order) || Array.isArray((record as { meals?: unknown }).meals));
 }
 
 function isRemoteGoal(value: unknown): value is SavedMacroGoal {
@@ -134,14 +158,20 @@ function isRemoteGoal(value: unknown): value is SavedMacroGoal {
 
 async function applyRemote(data: RemoteRecord) {
   await muteCloud(async () => {
-    if (Array.isArray(data.plans)) await writePlans(data.plans as MealPlan[]);
+    if (Array.isArray(data.plans)) await writePlans((data.plans as MealPlan[]).map((plan) => plan.people?.some((person) => person.name.trim().toLowerCase() === "bethany") ? { ...plan, people: plan.people.map((person) => person.name.trim().toLowerCase() === "bethany" ? { ...person, name: "Beth" } : person) } : plan));
     if (Array.isArray(data.groceryLists)) await writeGroceryLists(data.groceryLists);
     if (Array.isArray(data.macroGoals)) await writeSavedMacroGoals(data.macroGoals.filter(isRemoteGoal));
     else if (data.macroGoal && typeof data.macroGoal === "object" && !Array.isArray(data.macroGoal)) await writeSavedMacroGoal(data.macroGoal as SavedMacroGoal);
     if (Array.isArray(data.supplements)) saveSupplements(data.supplements);
+    if (Array.isArray(data.supplementRanks)) saveSupplementRanks(data.supplementRanks.filter(isSupplementRank));
     if (Array.isArray(data.toppings)) saveToppings(data.toppings);
     if (Array.isArray(data.plateTemplates)) savePlateTemplates(data.plateTemplates);
-    if (Array.isArray(data.people)) await writeSavedPeople(data.people.filter((person): person is SavedPerson => !!person && typeof person === "object" && typeof (person as SavedPerson).id === "string" && typeof (person as SavedPerson).name === "string"));
+    if (Array.isArray(data.meatStars)) saveMeatStars(data.meatStars.filter((name): name is string => typeof name === "string"));
+    if (Array.isArray(data.toppingStars)) saveToppingStars(data.toppingStars.filter(isToppingStars));
+    if (Array.isArray(data.leftovers)) saveLeftovers(data.leftovers as PlanBatch[]);
+    if (Array.isArray(data.people)) await writeSavedPeople(data.people.filter((person): person is SavedPerson => !!person && typeof person === "object" && typeof (person as SavedPerson).id === "string" && typeof (person as SavedPerson).name === "string").map((person) => person.name.trim().toLowerCase() === "bethany" ? { ...person, name: "Beth" } : person));
+    if (Array.isArray(data.peopleGroups)) await writePersonGroups(data.peopleGroups.filter((group): group is PersonGroup => !!group && typeof group === "object" && typeof (group as PersonGroup).id === "string" && typeof (group as PersonGroup).name === "string" && Array.isArray((group as PersonGroup).personIds)));
+    if (data.planDefaults && typeof data.planDefaults === "object" && typeof (data.planDefaults as PlanDefaults).peopleOn === "boolean") await writePlanDefaults(data.planDefaults as PlanDefaults);
     if (Array.isArray(data.macroLogs)) await writeMacroLogs(data.macroLogs.filter((entry): entry is MacroLog => !!entry && typeof entry === "object" && typeof (entry as MacroLog).id === "string" && typeof (entry as MacroLog).date === "string" && typeof (entry as MacroLog).personId === "string"));
   });
   if (Array.isArray(data.plans)) {
@@ -267,10 +297,18 @@ export function startHouseholdSync() {
             historyEntries = Array.isArray(data?.entries) ? (data.entries as HistoryEntry[]) : [];
             for (const listener of historyListeners) listener(historyEntries);
           });
+          const templateDoc = await import("firebase/firestore").then(({ doc }) => doc(ready.db, "household", "templates"));
+          if (token !== generation) return;
+          const stopTemplates = onSnapshot(templateDoc, (snap) => {
+            const data = snap.data();
+            templateEntries = Array.isArray(data?.entries) ? (data.entries as PlanTemplate[]) : [];
+            for (const listener of templateListeners) listener(templateEntries);
+          });
           const previousStop = stopSnap;
           stopSnap = () => {
             previousStop?.();
             stopHistory();
+            stopTemplates();
           };
         })();
       });
@@ -415,6 +453,34 @@ export function watchHistory(listener: (entries: HistoryEntry[]) => void) {
   return () => {
     historyListeners.delete(listener);
   };
+}
+
+export function watchTemplates(listener: (entries: PlanTemplate[]) => void) {
+  templateListeners.add(listener);
+  listener(templateEntries);
+  return () => {
+    templateListeners.delete(listener);
+  };
+}
+
+export async function addTemplates(entries: PlanTemplate[]) {
+  const ready = await client();
+  if (!ready?.auth.currentUser) throw new Error("Sign in to change plan templates.");
+  const { doc, getDoc } = await import("firebase/firestore");
+  const existing = await getDoc(doc(ready.db, "household", "templates"));
+  const previous = Array.isArray(existing.data()?.entries) ? (existing.data()?.entries as PlanTemplate[]) : templateEntries;
+  await saveTemplates([...entries, ...previous]);
+}
+
+export async function saveTemplates(entries: PlanTemplate[]) {
+  const ready = await client();
+  if (!ready?.auth.currentUser) throw new Error("Sign in to change plan templates.");
+  const { doc, setDoc } = await import("firebase/firestore");
+  try {
+    await setDoc(doc(ready.db, "household", "templates"), { entries, updatedAt: Date.now() });
+  } catch {
+    throw new Error("Could not update plan templates. Sign in with an allowed household email.");
+  }
 }
 
 export async function saveHistory(entries: HistoryEntry[]) {

@@ -1,7 +1,7 @@
-import { eachDay, formatRange, type MealPlan } from "@/lib/plans/model";
+import { formatRange, planDates, type MealPlan } from "@/lib/plans/model";
 import { formatAmount, formatTsp, parseAmount } from "@/lib/recipes/amount";
 import type { Recipe } from "@/lib/recipes/types";
-import { getIngredient, listIngredients, type SourcedIngredient } from "@/lib/sourced";
+import { getIngredient, listIngredients, shopLink, type SourcedIngredient } from "@/lib/sourced";
 import { spoonLabel } from "@/lib/sourced/convert";
 import { mealScale, recipeFromLines, smoothedServings, usedLibraryServings } from "@/lib/sourced/meal";
 
@@ -10,6 +10,8 @@ export interface GroceryLine {
   servings: number;
   have: boolean;
   packages: number;
+  extra?: boolean;
+  source?: string;
 }
 
 export interface GroceryList {
@@ -129,6 +131,77 @@ export function packagePrice(item: SourcedIngredient): number {
   return each * count;
 }
 
+export function parentBuy(name: string, wanted: number): { count: number; price: number; label: string; unit: string } | null {
+  const item = getIngredient(name);
+  if (!item) return null;
+  const per = item.servingsPerPackage && item.servingsPerPackage > 0 ? item.servingsPerPackage : 1;
+  const count = wanted > 0 ? Math.max(1, Math.ceil(wanted / per - 1e-9)) : 1;
+  const row = extraRow(name, count);
+  if (!row) return null;
+  const measure = parseServingAmount(item.servingSize);
+  return {
+    count,
+    price: count * row.packagePrice,
+    label: (count === 1 ? packLabel(row, count) : packLabel(row, count).replace(/\broll\b/, "rolls")).replace(/^Buy\s+/, ""),
+    unit: measure.unit || servingUnit(item.servingSize),
+  };
+}
+
+/** One library serving, in the unit printed on the serving size. 100 g → 100 g, 1/4 cup → 0.25 cup. */
+export function parseServingAmount(servingSize: string): { amount: number; unit: string } {
+  const bare = servingSize.replace(/\s*\([^)]*\)/g, "").replace(/\.+$/, "").trim();
+  const fraction = bare.match(/^(\d+)\s*\/\s*(\d+)\s+(.+)$/);
+  if (fraction) {
+    const bottom = Number(fraction[2]);
+    return { amount: bottom ? Number(fraction[1]) / bottom : 1, unit: cleanUnit(fraction[3]) };
+  }
+  const number = bare.match(/^([\d.]+)\s+(.+)$/);
+  if (number) return { amount: Number(number[1]) || 1, unit: cleanUnit(number[2]) };
+  return { amount: 1, unit: cleanUnit(bare) };
+}
+
+/** How much of that serving unit is in one parent package. */
+export function packageMeasure(name: string): { each: number; unit: string; total: number } | null {
+  const item = getIngredient(name);
+  if (!item) return null;
+  const measure = parseServingAmount(item.servingSize);
+  const servings = item.servingsPerPackage && item.servingsPerPackage > 0 ? item.servingsPerPackage : 1;
+  return { each: measure.amount > 0 ? measure.amount : 1, unit: measure.unit, total: (measure.amount > 0 ? measure.amount : 1) * servings };
+}
+
+export function parentPackage(name: string): { servings: number; name: string } | null {
+  const item = getIngredient(name);
+  if (!item) return null;
+  const servings = item.servingsPerPackage && item.servingsPerPackage > 0 ? item.servingsPerPackage : 1;
+  return { servings, name: parentTitle(item, servings) };
+}
+
+function parentTitle(item: SourcedIngredient, servings: number): string {
+  if (item.size?.trim()) return item.size.trim();
+  const measure = parseServingAmount(item.servingSize);
+  const total = (measure.amount > 0 ? measure.amount : 1) * servings;
+  const weight = measure.unit ? `${formatAmount(total)} ${measure.unit}` : "";
+  if (/\beach\b/i.test(item.fullName)) return weight ? `each (${weight})` : "each";
+  return weight || "package";
+}
+
+function cleanUnit(unit: string): string {
+  return unit.replace(/\.+$/, "").trim();
+}
+
+function servingUnit(servingSize: string): string {
+  return parseServingAmount(servingSize).unit;
+}
+
+export function extraRow(name: string, packages: number): GroceryRow | null {
+  const item = getIngredient(name);
+  if (!item) return null;
+  const per = item.servingsPerPackage && item.servingsPerPackage > 0 ? item.servingsPerPackage : 1;
+  const row = rowFor(name, per, Math.max(1, packages));
+  if (!row) return null;
+  return { ...row, servings: 0, category: "Single items", sub: "Added", usedLabel: "Added", consumedCost: 0, packages: Math.max(0, packages) };
+}
+
 export function rowFor(name: string, servings: number, packages?: number): GroceryRow | null {
   const item = getIngredient(name);
   if (!item || servings <= 0) return null;
@@ -158,16 +231,24 @@ export function collectUsage(plans: MealPlan[], planIds: string[], catalog: Read
   };
   for (const plan of plans) {
     if (!wanted.has(plan.id)) continue;
-    for (const date of eachDay(plan.start, plan.end)) {
+    for (const date of planDates(plan)) {
       for (const meal of plan.days[date] ?? []) {
         const recipe = meal.recipeUid ? catalog.get(meal.recipeUid) : undefined;
-        if (recipe) {
+        if (recipe && !meal.batchId) {
           const basis = meal.lines?.length ? recipeFromLines(recipe, meal.lines) : recipe;
           for (const row of usedLibraryServings(basis, catalog, mealScale(meal), meal.meatTrim ?? 1, meal.carbItem, meal.carbScale, meal.tweaks, plan.beefChoice)) {
             add(row.name, row.servings);
           }
         }
         if (meal.sideName && meal.sideServings) add(meal.sideName, smoothedServings(meal.sideName, meal.sideServings));
+      }
+    }
+    for (const batch of plan.batches ?? []) {
+      const recipe = catalog.get(batch.recipeUid);
+      if (!recipe) continue;
+      // The recipe amounts are the whole pot. batch.servings only says how many plates that pot splits into.
+      for (const row of usedLibraryServings(recipe, catalog, 1, 1, undefined, undefined, undefined, plan.beefChoice)) {
+        add(row.name, row.servings);
       }
     }
   }
@@ -208,6 +289,19 @@ function compareRows(a: GroceryRow, b: GroceryRow): number {
   const sub = a.sub.localeCompare(b.sub);
   if (sub) return sub;
   return a.name.localeCompare(b.name);
+}
+
+export function stampGrocerySources(lists: GroceryList[]): GroceryList[] {
+  return lists.map((list) => ({
+    ...list,
+    lines: list.lines.map((line) => ({ ...line, source: ingredientSource(line.name) || line.source || "" })),
+  }));
+}
+
+function ingredientSource(name: string): string {
+  const item = getIngredient(name);
+  if (!item) return "";
+  return shopLink(item) || item.macroSource?.trim() || item.notes?.trim() || item.brand?.trim() || item.fullName?.trim() || "";
 }
 
 export function groceryLabel(plans: MealPlan[], planIds: string[]): string {

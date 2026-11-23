@@ -122,6 +122,9 @@ export interface Recipe {
   version?: number | null;
   version_label?: string | null;
   favorite?: boolean;
+  /** Chosen on the add-recipe page so home filters match the taps, instead of a guess from the title. */
+  filter_course?: string | null;
+  filter_proteins?: string[] | null;
   custom_notes?: string | null;
   /** Fit tag. `fit_of` is the recipe that was scaled. `fit_goal` is the macro goal it was fitted to. `fit_source` is that recipe's ingredient list, so the same recipe is reused and an edit does not reuse a stale fit. */
   fit_of?: string | null;

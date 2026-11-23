@@ -189,6 +189,9 @@ const ALIAS_ROWS: Array<[string, string]> = [
   ["beef crackling", "beef cracklings"],
   ["cracklings", "beef cracklings"],
   ["crackling", "beef cracklings"],
+  ["fried beef tallow bites", "beef cracklings"],
+  ["beef tallow bites", "beef cracklings"],
+  ["tallow bites", "beef cracklings"],
   ["olive oil", "olive oil"],
   ["extra virgin olive oil", "olive oil"],
   ["evoo", "olive oil"],
@@ -1517,6 +1520,9 @@ export function pairIngredient(text: string): IngredientPair {
   }
   const directAlias = lookupAlias(phrase);
   if (directAlias) return directAlias;
+  if (/\b(diced|crushed|canned|petite|stewed)\b/.test(phrase) && /\btomatoes?\b/.test(phrase) && !/\b(sauce|paste|puree|passata|rotel|chile|chili)\b/.test(phrase)) {
+    return { name: "canned tomato", match: "exact" };
+  }
   if (/pork rinds?|pork skins?/.test(phrase) && !phrase.includes("belly")) return { name: "pork rinds", match: "closest" };
   const itemTokens = splitGlued(tokensOf(phrase).filter((token) => !FILLER.has(token) && !/^\d+$/.test(token)));
   if (!itemTokens.length) return { name: null, match: "none" };

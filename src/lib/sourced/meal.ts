@@ -1,4 +1,5 @@
 import type { BeefChoice, GoalTargets, PlannedMeal } from "@/lib/plans/model";
+import { loadPlateTemplates } from "@/lib/plans/toppings";
 import { formatAmount, formatTsp, parseAmount } from "@/lib/recipes/amount";
 import { stepGroups } from "@/lib/recipes/present";
 import type { EstimatedIngredient, IngredientObj, Recipe } from "@/lib/recipes/types";
@@ -128,7 +129,7 @@ export function mealScale(meal: { portion?: number; fitScale?: number; lines?: r
 }
 
 export function planMealMath(
-  meal: { recipeUid: string; portion?: number; fitScale?: number; meatTrim?: number; sideName?: string; sideServings?: number; carbItem?: string; carbScale?: number; tweaks?: IngredientScale[]; lines?: Array<{ quantity: string; unit: string; name: string }> },
+  meal: { recipeUid: string; title?: string; portion?: number; fitScale?: number; meatTrim?: number; sideName?: string; sideServings?: number; carbItem?: string; carbScale?: number; tweaks?: IngredientScale[]; lines?: Array<{ quantity: string; unit: string; name: string }>; plate?: { beefName: string; beef: number; extras: Array<{ name: string; servings: number }>; rows: Array<{ lines: Array<{ name: string; servings: number }> }> } },
   catalog: ReadonlyMap<string, Recipe>,
   beef?: BeefChoice,
 ): MealMath | null {
@@ -136,9 +137,11 @@ export function planMealMath(
     let macros = emptyMacros();
     let partial = false;
     let any = false;
-    const recipe = meal.recipeUid ? catalog.get(meal.recipeUid) : undefined;
-    if (recipe) {
-      const basis = meal.lines?.length ? recipeFromLines(recipe, meal.lines) : recipe;
+    const plated = plateMath(meal);
+    if (plated) return plated;
+    const stored = meal.recipeUid ? catalog.get(meal.recipeUid) : undefined;
+    if (stored) {
+      const basis = meal.lines?.length ? recipeFromLines(stored, meal.lines) : stored;
       const math = scaledMealMacros(basis, catalog, mealScale(meal), meal.meatTrim ?? 1, meal.carbItem, meal.carbScale, meal.tweaks);
       macros = addMacros(macros, math.macros);
       partial = math.partial;
@@ -155,6 +158,51 @@ export function planMealMath(
   };
   if (beef === undefined) return run();
   return useBeefChoice(beef, run);
+}
+
+function plateMath(meal: { title?: string; portion?: number; fitScale?: number; meatTrim?: number; lines?: Array<unknown>; plate?: { beefName: string; beef: number; extras: Array<{ name: string; servings: number }>; rows: Array<{ lines: Array<{ name: string; servings: number }> }> } }): MealMath | null {
+  const lines = plateServings(meal);
+  if (!lines?.length) return null;
+  const scale = mealScale(meal);
+  const trim = meal.meatTrim ?? 1;
+  let macros = emptyMacros();
+  let partial = false;
+  let any = false;
+  for (const line of lines) {
+    const factor = scale * (isMeatName(line.name) ? trim : 1);
+    const piece = macrosForServings(line.name, line.servings * factor);
+    if (!piece) {
+      partial = true;
+      continue;
+    }
+    macros = addMacros(macros, piece);
+    any = true;
+  }
+  return any ? { macros, partial } : null;
+}
+
+export function plateServings(meal: { title?: string; plate?: { beefName: string; beef: number; extras: Array<{ name: string; servings: number }>; rows: Array<{ lines: Array<{ name: string; servings: number }> }> } }): Array<{ name: string; servings: number }> | null {
+  const plate = plateRecord(meal);
+  if (!plate) return null;
+  const lines: Array<{ name: string; servings: number }> = [];
+  if (plate.beef > 0 && plate.beefName) lines.push({ name: plate.beefName, servings: plate.beef });
+  for (const extra of plate.extras) if (extra.name && extra.servings > 0) lines.push(extra);
+  for (const row of plate.rows) for (const line of row.lines) if (line.name && line.servings > 0) lines.push(line);
+  return lines;
+}
+
+function plateRecord(meal: { title?: string; plate?: { beefName: string; beef: number; extras: Array<{ name: string; servings: number }>; rows: Array<{ title?: string; lines: Array<{ name: string; servings: number }> }> } }): { beefName: string; beef: number; extras: Array<{ name: string; servings: number }>; rows: Array<{ lines: Array<{ name: string; servings: number }> }> } | undefined {
+  const own = meal.plate;
+  const title = meal.title?.trim().toLowerCase();
+  const saved = title
+    ? loadPlateTemplates()
+        .filter((item) => item.title.trim().toLowerCase() === title)
+        .sort((a, b) => (b.version || 0) - (a.version || 0))[0]
+    : undefined;
+  if (saved && saved.beef > 0 && !(own && own.beef > 0 && own.beefName)) {
+    return { beefName: saved.beefName, beef: saved.beef, extras: saved.extras ?? [], rows: saved.rows ?? [] };
+  }
+  return own;
 }
 
 export function trimmedMealMacros(recipe: Recipe, catalog: ReadonlyMap<string, Recipe> | undefined, meatTrim = 1): MealMath {

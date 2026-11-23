@@ -260,6 +260,14 @@ export function migrateLegacyMods(recipes: Recipe[]): boolean {
 }
 
 const OREO_WINGS_UID = "cary_kelly:1491842167823912964";
+const RETIRED_UIDS = new Set(["cary_kelly:1995948355365777545"]);
+const RETIRED_TITLES = new Set(["bacon cheeseburger chili (2)"]);
+
+export function isRetiredRecipe(recipe: Recipe): boolean {
+  if (!recipe) return false;
+  if (RETIRED_UIDS.has(recipe.uid) || RETIRED_UIDS.has(baseOf(recipe))) return true;
+  return RETIRED_TITLES.has((recipe.title || "").trim().toLowerCase());
+}
 
 function isCannedSauceLine(text: string): boolean {
   return /favorite canned sauce/i.test(text);
@@ -292,7 +300,7 @@ export function pruneRecipes(recipes: Recipe[]): boolean {
   let changed = false;
   for (let index = recipes.length - 1; index >= 0; index -= 1) {
     const recipe = recipes[index];
-    if (recipe.uid === OREO_WINGS_UID || recipe.title === "Oreo-Breaded Wings") {
+    if (recipe.uid === OREO_WINGS_UID || recipe.title === "Oreo-Breaded Wings" || isRetiredRecipe(recipe)) {
       recipes.splice(index, 1);
       changed = true;
       continue;

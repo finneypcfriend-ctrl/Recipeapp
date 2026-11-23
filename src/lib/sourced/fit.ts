@@ -1,5 +1,5 @@
 import type { GoalTargets, MealPlan, MealSlot, PlannedMeal } from "@/lib/plans/model";
-import { SLOT_ORDER, eachDay } from "@/lib/plans/model";
+import { SLOT_ORDER, planDates } from "@/lib/plans/model";
 import { formatAmount, parseAmount } from "@/lib/recipes/amount";
 import { linesFromRecipe, type EditableLine } from "@/lib/recipes/lines";
 import type { IngredientObj, Recipe } from "@/lib/recipes/types";
@@ -105,7 +105,7 @@ export function fitPlanDays(
   let fitted = 0;
   let outside = 0;
   let fed = 0;
-  for (const date of eachDay(plan.start, plan.end)) {
+  for (const date of planDates(plan)) {
     const meals = plan.days[date] ?? [];
     if (!meals.length) continue;
     fed += 1;

@@ -435,6 +435,10 @@ function weightServings(grams: number, serving: ParsedServing, name: string): nu
   return null;
 }
 
+export function gramsPerTeaspoon(name: string): number | null {
+  return GRAMS_PER_TSP[name] ?? null;
+}
+
 /** Teaspoons or tablespoons for a gram weight, when this spice has a known spoon weight. */
 export function spoonLabel(name: string, grams: number): string | null {
   const gramsUsed = spoonGrams(name, grams);

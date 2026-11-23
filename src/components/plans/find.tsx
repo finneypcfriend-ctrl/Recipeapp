@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { AddPersonButton, PersonSelect, useSavedPeople } from "@/components/plans/people";
-import { defaultMacroName, todayKey, type MacroGoals, type PlanRoute, type SavedMacroGoal } from "@/lib/plans/model";
+import { datedName, defaultMacroName, todayKey, type MacroGoals, type PlanRoute, type SavedMacroGoal } from "@/lib/plans/model";
 import { findMacros, formatMacro, type MacroGrams, type MacroSex } from "@/lib/plans/findMacros";
 import { readSavedMacroGoal, writeSavedMacroGoal } from "@/lib/recipes/idb";
 
@@ -13,7 +13,7 @@ const ACTIVITIES = [
   { value: "1.9", label: "1.9 — training most days and a heavy job" },
 ];
 
-export function FindMacros({ onOpen, onNotify }: { onOpen: (route: PlanRoute) => void; onNotify: (message: string) => void }) {
+export function FindMacros({ onOpen, onNotify, personId = "" }: { onOpen: (route: PlanRoute) => void; onNotify: (message: string) => void; personId?: string }) {
   const [sex, setSex] = useState<MacroSex>("Male");
   const [age, setAge] = useState("");
   const [weight, setWeight] = useState("");
@@ -31,7 +31,7 @@ export function FindMacros({ onOpen, onNotify }: { onOpen: (route: PlanRoute) =>
   const [lossProtein, setLossProtein] = useState("18");
   const [lossCarb, setLossCarb] = useState("2");
   const [name, setName] = useState("");
-  const [forPersonId, setForPersonId] = useState("");
+  const [forPersonId, setForPersonId] = useState(personId);
   const people = useSavedPeople();
   const [saving, setSaving] = useState(false);
   const math = findMacros({
@@ -69,7 +69,7 @@ export function FindMacros({ onOpen, onNotify }: { onOpen: (route: PlanRoute) =>
       };
       const chosen = people.find((item) => item.id === forPersonId);
       const record: SavedMacroGoal = {
-        name: name.trim() || (chosen ? chosen.name : existing?.name) || defaultMacroName(savedOn),
+        name: datedName(name.trim() || (chosen ? chosen.name : existing?.name) || defaultMacroName(savedOn), savedOn),
         savedOn: chosen ? todayKey() : savedOn,
         goals,
       };

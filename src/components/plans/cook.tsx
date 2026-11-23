@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { useState } from "react";
 import { aisle, describeUse } from "@/lib/plans/grocery";
-import { eachDay, formatDay, mealPerson, SLOT_LABEL, SLOT_ORDER, twoPeople, type MealPlan, type MealSlot, type PlannedMeal } from "@/lib/plans/model";
+import { formatDay, mealPerson, peopleForDay, planDates, SLOT_LABEL, SLOT_ORDER, twoPeople, type MealPlan, type MealSlot, type PlannedMeal } from "@/lib/plans/model";
 import type { Recipe } from "@/lib/recipes/types";
 import { getIngredient } from "@/lib/sourced";
 import { cookParts, formatSide, libraryServingLabel, mealScale, recipeFromLines, usedLibraryServings, type CookPart } from "@/lib/sourced/meal";
@@ -26,9 +26,7 @@ export function CookBoard({
   onOpen: (route: { kind: "prep" | "cooking"; planId: string; mealIds: string[] }) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
-  const days = eachDay(plan.start, plan.end);
-  const paired = twoPeople(plan);
-  const people = paired ? (plan.people ?? []) : [null];
+  const days = planDates(plan);
   const toggle = (id: string) => setPicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   return (
     <>
@@ -37,6 +35,8 @@ export function CookBoard({
       <ul className="flex flex-col gap-2">
         {days.map((date) => {
           const when = new Date(`${date}T12:00:00`);
+          const roster = peopleForDay(plan, date);
+          const people = roster.length ? roster : !plan.dayPeople && !twoPeople(plan) ? [null] : [];
           return (
             <li key={date} className="rounded-card border border-line bg-surface p-2">
               <div className="flex items-start gap-2">
@@ -207,7 +207,7 @@ function IngredientFolders({ groups, startOpen, label }: { groups: Array<{ categ
 function gatherGroups(plan: MealPlan, catalog: ReadonlyMap<string, Recipe>, mealIds: string[]): Array<{ category: string; lines: string[] }> {
   const wanted = new Set(mealIds);
   const hits: Array<{ who: string; recipeKey: string; date: string; servings: Map<string, number> }> = [];
-  for (const date of eachDay(plan.start, plan.end)) {
+  for (const date of planDates(plan)) {
     for (const meal of plan.days[date] ?? []) {
       if (!wanted.has(meal.id)) continue;
       const servings = new Map<string, number>();
@@ -542,7 +542,7 @@ function isBatter(label: string): boolean {
 function cookGroups(plan: MealPlan, catalog: ReadonlyMap<string, Recipe>, mealIds: string[]) {
   const wanted = new Set(mealIds);
   const rows: Array<{ meal: PlannedMeal; date: string; person: string; part: CookPart }> = [];
-  for (const date of eachDay(plan.start, plan.end)) {
+  for (const date of planDates(plan)) {
     for (const meal of plan.days[date] ?? []) {
       if (!wanted.has(meal.id)) continue;
       const recipe = meal.recipeUid ? catalog.get(meal.recipeUid) : undefined;

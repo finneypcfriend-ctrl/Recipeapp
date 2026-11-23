@@ -18,10 +18,22 @@ export interface ToppingRecipe {
 
 const KEY = "recipes.toppings";
 const TEMPLATE_KEY = "recipes.plate-templates";
+const MEAT_STARS_KEY = "recipes.meat-stars";
+const TOPPING_STARS_KEY = "recipes.topping-stars";
+
+export interface ToppingStars {
+  personId: string;
+  ids: string[];
+}
 
 export interface PlateTemplate {
   id: string;
   title: string;
+  /** Shared by every version of this plate. Older saves use the id. */
+  baseId?: string;
+  version?: number;
+  /** V1, or V2 plus a short name. */
+  versionLabel?: string;
   beefName: string;
   beef: number;
   extras: ToppingLine[];
@@ -99,8 +111,70 @@ export function savePlateTemplates(items: PlateTemplate[]) {
   emitCloud({ plateTemplates: items });
 }
 
+export function loadMeatStars(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MEAT_STARS_KEY) || "[]") as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveMeatStars(names: string[]) {
+  const next = [...new Set(names.filter((name) => name.trim()))];
+  localStorage.setItem(MEAT_STARS_KEY, JSON.stringify(next));
+  emitCloud({ meatStars: next });
+}
+
+export function loadToppingStars(): ToppingStars[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TOPPING_STARS_KEY) || "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const record = item as Partial<ToppingStars>;
+      if (typeof record.personId !== "string" || !record.personId) return [];
+      const ids = Array.isArray(record.ids) ? record.ids.filter((id): id is string => typeof id === "string" && Boolean(id)) : [];
+      return [{ personId: record.personId, ids: [...new Set(ids)] }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function saveToppingStars(rows: ToppingStars[]) {
+  localStorage.setItem(TOPPING_STARS_KEY, JSON.stringify(rows));
+  emitCloud({ toppingStars: rows });
+}
+
+export function toppingStarsFor(personId: string): string[] {
+  return loadToppingStars().find((row) => row.personId === personId)?.ids ?? [];
+}
+
+export function writeToppingStars(personId: string, ids: string[]) {
+  const next = [...new Set(ids.filter((id) => id.trim()))];
+  const rest = loadToppingStars().filter((row) => row.personId !== personId);
+  saveToppingStars(next.length ? [{ personId, ids: next }, ...rest] : rest);
+}
+
 export function nextToppingVersion(items: ToppingRecipe[], baseId: string): number {
   return items.filter((item) => item.baseId === baseId).reduce((max, item) => Math.max(max, item.version || 0), 0) + 1;
+}
+
+export function nextPlateVersion(items: PlateTemplate[], baseId: string): number {
+  return items.filter((item) => (item.baseId || item.id) === baseId).reduce((max, item) => Math.max(max, item.version || 1), 0) + 1;
+}
+
+export function plateBaseId(item: PlateTemplate): string {
+  return item.baseId || item.id;
+}
+
+export function plateVersion(item: PlateTemplate): number {
+  return item.version || 1;
+}
+
+export function plateVersionLabel(item: PlateTemplate): string {
+  return item.versionLabel?.trim() || `V${plateVersion(item)}`;
 }
 
 export function servingsFromRaw(raw: string | null | undefined): number | null {

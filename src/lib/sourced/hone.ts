@@ -206,19 +206,14 @@ function pickFat(approved: readonly string[]) {
 function pickProtein(approved: readonly string[], base: Macros, targets: GoalTargets) {
   const fatFull = targets.fat != null && base.fatG >= targets.fat * (1 - TOLERANCE);
   const caloriesFull = targets.calories != null && base.calories >= targets.calories * (1 - TOLERANCE);
-  let best: ReturnType<typeof getIngredient> | undefined;
-  let bestFat = Infinity;
   for (const name of approved) {
     const item = getIngredient(name);
     if (!item || item.perServing.proteinG < 4) continue;
     const fatEach = item.perServing.fatG / item.perServing.proteinG;
     if ((fatFull || caloriesFull) && fatEach >= 0.75) continue;
-    if (fatEach < bestFat) {
-      bestFat = fatEach;
-      best = item;
-    }
+    return item;
   }
-  return best;
+  return undefined;
 }
 
 function fillProtein(base: Macros, item: { name: string; perServing: Macros; servingSize: string; servingQty: number | null }, targets: GoalTargets): number {

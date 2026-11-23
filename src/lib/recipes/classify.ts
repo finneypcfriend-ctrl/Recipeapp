@@ -165,6 +165,7 @@ function titleCourse(title: string): CourseName | null {
 }
 
 export function courseOf(recipe: Recipe): CourseName {
+  if (recipe.filter_course && (COURSE_ORDER as readonly string[]).includes(recipe.filter_course)) return recipe.filter_course as CourseName;
   if (recipe.collection === "cary_kelly" && recipe.recipe_type && CK_TYPE[recipe.recipe_type]) {
     return CK_TYPE[recipe.recipe_type];
   }
@@ -209,6 +210,10 @@ function stripPhrases(text: string): string {
 }
 
 export function proteinsOf(recipe: Recipe): MeatName[] {
+  if (recipe.filter_proteins?.length) {
+    const tagged = recipe.filter_proteins.filter((name): name is MeatName => (MEAT_ORDER as readonly string[]).includes(name));
+    if (tagged.length) return tagged;
+  }
   const titleHits = textHits(normalizeText(recipe.title || ""), PROTEIN_KEYWORDS) as MeatName[];
   if (titleHits.length) return titleHits;
   let hits = textHits(stripPhrases(ingredientBlob(recipe)), PROTEIN_KEYWORDS) as MeatName[];

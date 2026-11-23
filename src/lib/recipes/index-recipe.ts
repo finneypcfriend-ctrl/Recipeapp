@@ -1,4 +1,5 @@
 import { courseOf, ingredientBlob, proteinsOf, sourceLabelOf } from "./classify";
+import { reviseRecipe } from "./guess";
 import { baseOf, isVersionRecipe, versionLabelOf, versionNumber } from "./lines";
 import type { Recipe, RecipeFile, RecipeMeta, SlimRecipe } from "./types";
 
@@ -65,8 +66,9 @@ export function indexRecipes(file: RecipeFile): { metadata: RecipeMeta; index: S
   const index: SlimRecipe[] = [];
   for (const recipe of file.recipes ?? []) {
     if (!recipe || !recipe.uid) continue;
-    recipes.set(recipe.uid, recipe);
-    index.push(toSlim(recipe));
+    const revised = reviseRecipe(recipe);
+    recipes.set(revised.uid, revised);
+    index.push(toSlim(revised));
   }
   return {
     metadata: file.metadata ?? { recipe_count: index.length },

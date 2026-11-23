@@ -1,5 +1,6 @@
 import homemadeRows from "./homemade.json" with { type: "json" };
 import ingredientRows from "./ingredients.json" with { type: "json" };
+import { loadCustomIngredients, priceIngredient } from "./custom";
 
 /**
  * Standalone sourced-ingredient database (products, macros, cost).
@@ -37,6 +38,7 @@ export interface SourcedIngredient {
   labelIngredients: string;
   macroSource: string;
   notes: string;
+  shopUrl?: string;
 }
 
 export interface HomemadeLine {
@@ -62,6 +64,54 @@ const ingredients = (ingredientRows as SourcedIngredient[]).map(withoutPlantProt
 const homemade = homemadeRows as HomemadeRecipe[];
 const byName = new Map(ingredients.map((item) => [normalize(item.name), item]));
 
+const KEEP_SHORT = new Set(["salt", "onion", "lemon", "lime", "cumin", "lard", "tuna", "sumac", "leek", "sage", "anise", "duck", "feta", "okra", "kale", "brie", "ghee", "yeast", "salsa", "chia", "bacon", "water", "cajun", "kefir", "dijon"]);
+const PLAIN_NAME: Record<string, string> = {
+  acv: "Apple cider vinegar",
+  lmnt: "LMNT electrolytes",
+  fruit: "Strawberries",
+  "old bay": "Old Bay",
+  "mct oil": "MCT oil",
+  "bbq rub": "BBQ rub",
+  "beef cracklings": "Fried beef tallow bites",
+};
+
+export function listIngredients(): readonly SourcedIngredient[] {
+  return [...ingredients, ...customIngredients()].map(priceIngredient);
+}
+
+export function getIngredient(name: string): SourcedIngredient | undefined {
+  const found = byName.get(normalize(name)) ?? customIngredients().find((item) => normalize(item.name) === normalize(name));
+  return found ? priceIngredient(found) : undefined;
+}
+
+/** Plain-English label. The stored `name` stays the pairing key. */
+export function ingredientTitle(nameOrItem: string | SourcedIngredient): string {
+  const name = typeof nameOrItem === "string" ? nameOrItem : nameOrItem.name;
+  const item = typeof nameOrItem === "string" ? getIngredient(name) : nameOrItem;
+  const mapped = PLAIN_NAME[name.trim().toLowerCase()];
+  if (mapped) return mapped;
+  let title = name.replace(/\bsf\b/gi, "sugar-free");
+  if (item && isAbbrev(title)) {
+    const fromFull = stripProduct(item.fullName, item.brand);
+    if (fromFull && !isAbbrev(fromFull)) title = fromFull;
+  }
+  return title.trim() || name;
+}
+
+export function shopLink(item: SourcedIngredient): string {
+  if (item.shopUrl?.trim()) return item.shopUrl.trim();
+  const blob = `${item.notes || ""} ${item.macroSource || ""}`;
+  return blob.match(/https?:\/\/[^\s)]+/)?.[0] ?? "";
+}
+
+export function searchIngredients(query: string): SourcedIngredient[] {
+  const needle = normalize(query);
+  if (!needle) return [];
+  return listIngredients()
+    .filter((item) => [item.name, ingredientTitle(item), item.fullName, item.brand].some((value) => normalize(value).includes(needle)))
+    .sort((a, b) => rank(a, needle) - rank(b, needle) || ingredientTitle(a).localeCompare(ingredientTitle(b)));
+}
+
 /**
  * Plant protein is not counted. It is poorly bioavailable, so a mushroom,
  * a spice, or a nut shows 0 g protein. Meat, fish, eggs, and dairy keep theirs.
@@ -75,22 +125,6 @@ export function countsAsAnimalProtein(name: string): boolean {
 function withoutPlantProtein(item: SourcedIngredient): SourcedIngredient {
   if (countsAsAnimalProtein(item.name) || item.perServing.proteinG === 0) return item;
   return { ...item, perServing: { ...item.perServing, proteinG: 0 } };
-}
-
-export function listIngredients(): readonly SourcedIngredient[] {
-  return ingredients;
-}
-
-export function getIngredient(name: string): SourcedIngredient | undefined {
-  return byName.get(normalize(name));
-}
-
-export function searchIngredients(query: string): SourcedIngredient[] {
-  const needle = normalize(query);
-  if (!needle) return [];
-  return ingredients.filter((item) =>
-    [item.name, item.fullName, item.brand, item.labelIngredients].some((value) => normalize(value).includes(needle)),
-  );
 }
 
 export function macrosForServings(name: string, servings: number): Macros | undefined {
@@ -177,4 +211,34 @@ export function emptyMacros(): Macros {
 
 function normalize(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function customIngredients(): SourcedIngredient[] {
+  return loadCustomIngredients().map(withoutPlantProtein).map(priceIngredient);
+}
+
+function isAbbrev(text: string): boolean {
+  const key = text.trim().toLowerCase();
+  if (KEEP_SHORT.has(key) || PLAIN_NAME[key]) return false;
+  const words = key.replace(/[()]/g, " ").split(/\s+/).filter(Boolean);
+  return words.length === 1 && words[0].length <= 3;
+}
+
+function stripProduct(full: string, brand: string): string {
+  let text = (full.split(",")[0] ?? full).trim();
+  const phrase = brand.trim();
+  if (phrase && !/^(fresh produce|unbranded)$/i.test(phrase)) {
+    text = text.replace(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), " ");
+  }
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function rank(item: SourcedIngredient, needle: string): number {
+  const name = normalize(item.name);
+  const title = normalize(ingredientTitle(item));
+  if (name === needle || title === needle) return 0;
+  if (name.startsWith(needle) || title.startsWith(needle)) return 1;
+  if (name.includes(needle) || title.includes(needle)) return 2;
+  if (normalize(item.fullName).includes(needle)) return 3;
+  return 4;
 }

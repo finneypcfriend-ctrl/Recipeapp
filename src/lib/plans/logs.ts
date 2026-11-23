@@ -1,4 +1,4 @@
-import { formatDay, goalForPlanPerson, goalTargets, mealPerson, parseKey, shiftDay, twoPeople, type GoalTargets, type MealPlan, type MealSlot, type SavedMacroGoal } from "@/lib/plans/model";
+import { formatDay, goalForPlanPerson, goalTargets, mealPerson, parseKey, peopleForDay, shiftDay, twoPeople, type GoalTargets, type MealPlan, type MealSlot, type SavedMacroGoal } from "@/lib/plans/model";
 import type { Macros } from "@/lib/sourced";
 import type { Recipe } from "@/lib/recipes/types";
 import { formatGoalPercents, formatMealLine, formatSide, mealScale, planMealMath, recipeFromLines, sumPlanMeals, usedIngredientLines } from "@/lib/sourced/meal";
@@ -22,13 +22,19 @@ export interface MacroLog {
   meals: MacroLogMeal[];
 }
 
-export function buildDayLogs(plan: MealPlan, dates: string[], catalog: ReadonlyMap<string, Recipe>, goals: SavedMacroGoal[], household: SavedMacroGoal | null): MacroLog[] {
+export function buildDayLogs(plan: MealPlan, dates: string[], catalog: ReadonlyMap<string, Recipe>, goals: SavedMacroGoal[], household: SavedMacroGoal | null, only?: Record<string, string[] | null>): MacroLog[] {
   const paired = twoPeople(plan);
   const loggedAt = Date.now();
   const entries: MacroLog[] = [];
   for (const date of dates) {
-    const marked = paired ? (plan.people ?? []).filter((person) => (plan.macroDays?.[person.id] ?? []).includes(date)) : [];
-    const people = paired ? (marked.length ? marked : (plan.people ?? [])) : [null];
+    const roster = peopleForDay(plan, date);
+    const limit = only?.[date];
+    let people: Array<(typeof roster)[number] | null>;
+    if (only) people = roster.length ? (limit ? roster.filter((person) => limit.includes(person.id)) : roster) : [null];
+    else if (paired) {
+      const marked = roster.filter((person) => (plan.macroDays?.[person.id] ?? []).includes(date));
+      people = marked.length ? marked : roster.length ? roster : [null];
+    } else people = [null];
     for (const person of people) {
       const meals = (plan.days[date] ?? []).filter((meal) => !person || mealPerson(meal, plan) === person.id);
       if (!meals.some((meal) => meal.recipeUid || meal.title)) continue;

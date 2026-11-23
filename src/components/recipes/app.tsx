@@ -1,4 +1,5 @@
 import { ArrowUp, ChevronDown, LogIn, Search, Settings, SlidersHorizontal, User, X } from "lucide-react";
+import { UserProfiles } from "@/components/plans/profiles";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useHouseholdEmail } from "@/components/plans/account";
 import { Planner, describeAdd } from "@/components/plans/planner";
@@ -10,7 +11,8 @@ import { CatalogFilterChips } from "@/components/recipes/filter-chips";
 import { IngredientLibrary, RecipeLibrary } from "@/components/recipes/library";
 import { applyAccountPlateIngredients, plateIngredientNames } from "@/components/plans/plate";
 import { Sheet } from "@/components/recipes/sheet";
-import { addMeal, copyPersonDays, formatDay, goalForPlanPerson, goalTargets, mealPerson, newPlanId, parsePlanHash, planHash, removeMeal, setPlanRange, twoPeople, type BeefChoice, type DaySplit, type GoalTargets, type MealPlan, type PlanRoute, type PlannedMeal, type SnackDraw } from "@/lib/plans/model";
+import { addGroupsOnDays, addMeal, addPeopleOnDays, applyPlanDefaults, copyDaysOnto, copyIntoPlan, copyMealToChips, copyPersonDays, dropDaySeat, formatDay, goalForPlanPerson, goalTargets, mealPerson, newPlanId, parsePlanHash, planFromCopy, planHash, removeMeal, setPlanDates, setPlanRange, swapPlanDays, twoPeople, type BeefChoice, type ChipTarget, type DayCopyTarget, type DaySplit, type GoalTargets, type MealPlan, type PlanBatch, type PlanPerson, type PlanRoute, type PlannedMeal, type SnackDraw } from "@/lib/plans/model";
+import { definedBatchServings } from "@/lib/plans/batch-yield";
 import { buildDayLogs, logNote } from "@/lib/plans/logs";
 import { ingredientFromServings } from "@/lib/plans/toppings";
 import { loadSupplements } from "@/lib/plans/supplements";
@@ -19,8 +21,8 @@ import { createRecipeEngine, peekRecipeCount, publicAsset } from "@/lib/recipes/
 import { countFacets, filterCatalog } from "@/lib/recipes/filter";
 import { formatBuildDate, formatCount } from "@/lib/recipes/format";
 import { formatAmount, parseAmount } from "@/lib/recipes/amount";
-import { readMacroGoals, readMacroLogs, readPlans, readSavedMacroGoal, readSavedMacroGoals, readStoredFile, writeMacroLogs, writePlans, writeStoredFile } from "@/lib/recipes/idb";
-import { baseOf, buildVersionRecipe, isVersionRecipe, linesFromRecipe, migrateLegacyMods, nextVersionNumber, pruneRecipes, versionLabelOf, type EditableLine } from "@/lib/recipes/lines";
+import { readMacroGoals, readMacroLogs, readPersonGroups, readPlanDefaults, readPlans, readSavedMacroGoal, readSavedMacroGoals, readSavedPeople, readStoredFile, writeMacroLogs, writePlans, writeStoredFile } from "@/lib/recipes/idb";
+import { baseOf, buildVersionRecipe, isRetiredRecipe, isVersionRecipe, linesFromRecipe, migrateLegacyMods, nextVersionNumber, pruneRecipes, versionLabelOf, type EditableLine } from "@/lib/recipes/lines";
 import { DEFAULT_FILTERS, PREFS_KEY, activeFilterCount, applyTheme, loadPrefs, savePrefs } from "@/lib/recipes/prefs";
 import { makesLabel } from "@/lib/recipes/present";
 import type { FilterState, Recipe, RecipeFile, RecipeMeta, SlimRecipe, SortKey, ThemeChoice } from "@/lib/recipes/types";
@@ -70,6 +72,43 @@ function dayRecipe(meal: PlannedMeal, catalog: ReadonlyMap<string, Recipe>): Rec
   const stored = catalog.get(meal.recipeUid);
   if (!stored) return null;
   return meal.lines?.length ? recipeFromLines(stored, meal.lines) : stored;
+}
+
+function dropBatch(plan: MealPlan, batchId: string): MealPlan {
+  const days: MealPlan["days"] = {};
+  for (const [date, meals] of Object.entries(plan.days)) {
+    const next = meals.filter((meal) => meal.batchId !== batchId);
+    if (next.length) days[date] = next;
+  }
+  return { ...plan, batches: (plan.batches ?? []).filter((batch) => batch.id !== batchId), days, updatedAt: Date.now() };
+}
+
+function writeBatch(plan: MealPlan, batch: PlanBatch, draws: Array<{ date: string; slot: PlannedMeal["slot"]; servings: number; personId?: string }>, catalog: ReadonlyMap<string, Recipe>): MealPlan {
+  const cleared = dropBatch(plan, batch.id);
+  const defined = definedBatchServings(batch, catalog.get(batch.recipeUid), catalog);
+  const days = { ...cleared.days };
+  for (const draw of draws) {
+    if (draw.servings <= 0) continue;
+    const meal: PlannedMeal = {
+      id: crypto.randomUUID(),
+      slot: draw.slot,
+      recipeUid: batch.recipeUid,
+      title: batch.title,
+      versionLabel: batch.versionLabel ?? "",
+      personId: draw.personId,
+      batchId: batch.id,
+      batchServings: draw.servings,
+      batchYield: defined,
+      portion: draw.servings / defined,
+    };
+    days[draw.date] = [...(days[draw.date] ?? []), meal];
+  }
+  return { ...cleared, batches: [...(cleared.batches ?? []), batch], days, updatedAt: Date.now() };
+}
+
+function seatOf(personId?: string): { personId?: string; groupId?: string } {
+  if (personId?.startsWith("group:")) return { groupId: personId.slice("group:".length) };
+  return personId ? { personId } : {};
 }
 
 async function fitInto(plan: MealPlan, dates: string[], recipes: Recipe[]): Promise<{ plan: MealPlan; note: string }> {
@@ -237,6 +276,7 @@ export function RecipeApp() {
   const [visible, setVisible] = useState(PAGE);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const [directory, setDirectory] = useState<"recipes" | "ingredients" | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const householdEmail = useHouseholdEmail();
@@ -385,7 +425,7 @@ export function RecipeApp() {
       const hash = window.location.hash;
       const plan = parsePlanHash(hash);
       setPlanRoute(plan);
-      setSelectedUid(plan?.kind === "recipe" ? plan.uid : uidFromHash(hash));
+      setSelectedUid(plan?.kind === "recipe" ? plan.uid : plan?.kind === "batch" && plan.uid ? plan.uid : uidFromHash(hash));
     };
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
@@ -490,12 +530,37 @@ export function RecipeApp() {
     for (const list of map.values()) list.sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
     return map;
   }, [index]);
+  const versionsFor = (recipe: { uid: string; title: string; isVersion?: boolean; baseUid?: string }) => {
+    const own = versionsByBase.get(recipe.baseUid || recipe.uid) ?? versionsByBase.get(baseOf(recipe.uid)) ?? [];
+    if (own.length || recipe.isVersion) return own;
+    const taken = new Set<string>();
+    for (const base of versionsByBase.keys()) {
+      if (originals.some((item) => item.uid === base || item.uid === baseOf(base))) taken.add(base);
+    }
+    const extras: SlimRecipe[] = [];
+    const seen = new Set<string>();
+    for (const [base, list] of versionsByBase) {
+      if (taken.has(base)) continue;
+      for (const version of list) {
+        if (version.title !== recipe.title || seen.has(version.uid)) continue;
+        seen.add(version.uid);
+        extras.push(version);
+      }
+    }
+    return extras.sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
+  };
   const recipeByUid = useMemo(() => {
     const map = new Map<string, Recipe>();
     for (const recipe of recipeFileRef.current?.recipes ?? []) map.set(recipe.uid, recipe);
     return map;
   }, [index]);
-  const filtered = useMemo(() => filterCatalog(originals, versionsByBase, filters, filters.search), [originals, versionsByBase, filters]);
+  const filtered = useMemo(() => {
+    const rows = filterCatalog(originals, versionsByBase, filters, filters.search);
+    return rows.filter((recipe) => {
+      if (!recipe.custom) return true;
+      return !originals.some((item) => item.uid !== recipe.uid && !item.custom && item.title === recipe.title);
+    });
+  }, [originals, versionsByBase, filters]);
   const counts = useMemo(() => countFacets(originals, filters, filters.search), [originals, filters]);
   const totals = useMemo(() => {
     const meats: Record<string, number> = {};
@@ -541,11 +606,15 @@ export function RecipeApp() {
     if (window.location.hash !== next) window.location.hash = next;
     else {
       setPlanRoute(route);
-      setSelectedUid(route.kind === "recipe" ? route.uid : null);
+      setSelectedUid(route.kind === "recipe" ? route.uid : route.kind === "batch" && route.uid ? route.uid : null);
     }
   };
 
   const openRecipe = (uid: string) => {
+    if (planRoute?.kind === "batch") {
+      openPlan({ kind: "batch", planId: planRoute.planId, uid });
+      return;
+    }
     if (planRoute && planRoute.kind !== "list" && planRoute.kind !== "edit" && planRoute.kind !== "goals" && "slot" in planRoute) {
       openPlan({ kind: "recipe", planId: planRoute.planId, date: planRoute.date, slot: planRoute.slot, uid, personId: planRoute.personId });
       return;
@@ -563,6 +632,10 @@ export function RecipeApp() {
   };
 
   const closeRecipe = () => {
+    if (planRoute?.kind === "batch" && planRoute.uid) {
+      openPlan({ kind: "batch", planId: planRoute.planId });
+      return;
+    }
     if (planRoute?.kind === "recipe") {
       if (planRoute.mealId) {
         openPlan({ kind: "day", planId: planRoute.planId, date: planRoute.date });
@@ -699,16 +772,19 @@ export function RecipeApp() {
     const file = recipeFileRef.current;
     if (!file?.recipes || applyingVersions.current) return;
     const current = file.recipes.filter((recipe) => isVersionRecipe(recipe));
-    if (JSON.stringify(current) === JSON.stringify(versions)) return;
+    const incoming = versions.filter((recipe) => !isRetiredRecipe(recipe));
+    const droppedRetired = incoming.length !== versions.length;
+    if (JSON.stringify(current) === JSON.stringify(incoming)) return;
     applyingVersions.current = true;
     try {
-      file.recipes = [...file.recipes.filter((recipe) => !isVersionRecipe(recipe)), ...versions];
+      file.recipes = [...file.recipes.filter((recipe) => !isVersionRecipe(recipe)), ...incoming];
       const payload = JSON.stringify(file);
       await writeStoredFile(payload, "all_recipes.json");
       await ingest(payload, false);
     } finally {
       applyingVersions.current = false;
     }
+    if (droppedRetired) void publishRecipeVersions(incoming);
   };
 
   const renameVersion = async (source: Recipe, label: string) => {
@@ -954,7 +1030,7 @@ export function RecipeApp() {
             ) : (
               <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {shown.map((recipe) => {
-                  const versionCount = versionsByBase.get(recipe.uid)?.length ?? 0;
+                  const versionCount = versionsFor(recipe).length;
                   return (
                     <li key={recipe.uid}>
                       <button type="button" onClick={() => openRecipe(recipe.uid)} className="group flex h-full w-full flex-col overflow-hidden rounded-card bg-surface text-left shadow-md transition hover:-translate-y-0.5">
@@ -1023,6 +1099,16 @@ export function RecipeApp() {
       <Sheet open={settingsOpen} title="Settings" onClose={() => setSettingsOpen(false)}>
         <div className="flex flex-col gap-5">
           <div>
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsOpen(false);
+                setPeopleOpen(true);
+              }}
+              className="inline-flex h-11 items-center rounded-full border border-line bg-surface px-4 text-sm font-semibold"
+            >
+              People
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -1116,7 +1202,25 @@ export function RecipeApp() {
             >
               Download Draft 1 backup
             </button>
-            <p className="text-sm text-muted">Draft 1 is the untouched original file. Versions are saved in your recipe file as V1, V2, and so on.</p>
+            <button
+              type="button"
+              onClick={() => {
+                void fetch(publicAsset("layng-version-3.zip"))
+                  .then((response) => response.blob())
+                  .then((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "layng-version-3.zip";
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  });
+              }}
+              className="inline-flex h-11 items-center rounded-full border border-line px-4 text-sm font-semibold"
+            >
+              Download Version 3
+            </button>
+            <p className="text-sm text-muted">Draft 1 is the untouched original recipe file. Version 3 is a backup of the whole app from Nov 22, 2026. Versions of a recipe are saved in your recipe file as V1, V2, and so on.</p>
           </div>
           <fieldset>
             <legend className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">Appearance</legend>
@@ -1141,15 +1245,32 @@ export function RecipeApp() {
         </div>
       </Sheet>
 
-      {directory === "recipes" ? <RecipeLibrary recipes={originals} onOpen={openRecipe} onClose={() => setDirectory(null)} /> : null}
+      {directory === "recipes" ? (
+        <RecipeLibrary
+          recipes={originals}
+          onOpen={openRecipe}
+          onClose={() => setDirectory(null)}
+          onRead={(uid) => recipeFileRef.current?.recipes?.find((recipe) => recipe.uid === uid) ?? null}
+          onCreate={async (recipe) => {
+            const file = recipeFileRef.current;
+            if (!file?.recipes) throw new Error("Recipes are not loaded yet.");
+            const index = file.recipes.findIndex((item) => item.uid === recipe.uid);
+            if (index >= 0) file.recipes[index] = recipe;
+            else file.recipes.push(recipe);
+            await writeRecipes();
+          }}
+        />
+      ) : null}
       {directory === "ingredients" ? <IngredientLibrary onClose={() => setDirectory(null)} /> : null}
+      {peopleOpen ? <UserProfiles onClose={() => setPeopleOpen(false)} /> : null}
 
       {selected && slim ? (
         <RecipeDetail
           key={selected.uid}
           recipe={selected}
+          catalog={recipeByUid}
           slim={slim}
-          versions={(versionsByBase.get(selectedBase ?? "") ?? []).map((version) => ({
+          versions={(slim ? versionsFor(slim) : versionsByBase.get(selectedBase ?? "") ?? []).map((version) => ({
             uid: version.uid,
             label: version.versionLabel,
             number: version.version ?? 0,
@@ -1185,7 +1306,24 @@ export function RecipeApp() {
           }}
           onToggleFavorite={() => toggleFavorite(selected.uid)}
           addAction={
-            planRoute?.kind === "recipe"
+            planRoute?.kind === "batch" && planRoute.uid
+              ? {
+                  label: "Add batch",
+                  onClick: () => {
+                    const batch: PlanBatch = {
+                      id: crypto.randomUUID(),
+                      recipeUid: selected.uid,
+                      title: selected.title,
+                      versionLabel: slim.isVersion ? slim.versionLabel : "",
+                      servings: definedBatchServings({ id: "new", recipeUid: selected.uid, title: selected.title, servings: 0 }, selected, recipeByUid),
+                    };
+                    void savePlanList((current) => current.map((plan) => (plan.id === planRoute.planId ? writeBatch(plan, batch, [], recipeByUid) : plan))).then(() => {
+                      setToast("Added to batches.");
+                      openPlan({ kind: "edit", planId: planRoute.planId });
+                    });
+                  },
+                }
+              : planRoute?.kind === "recipe"
               ? {
                   label: [
                     planRoute.mealId ? describeAdd(planRoute.date, planRoute.slot).replace("Add to ", "Update ") : describeAdd(planRoute.date, planRoute.slot),
@@ -1246,8 +1384,19 @@ export function RecipeApp() {
             const plan: MealPlan = { id: newPlanId(), start: "", end: "", saved: false, updatedAt: Date.now(), days: {} };
             void savePlanList((current) => [...current, plan]).then(() => openPlan({ kind: "edit", planId: plan.id }));
           }}
-          onRange={(planId, start, end) => {
-            void savePlanList((current) => setPlanRange(current, planId, start, end));
+          onRange={(planId, start, end, dates) => {
+            void (async () => {
+              const [defaults, saved, goals, groups] = await Promise.all([readPlanDefaults(), readSavedPeople(), readSavedMacroGoals(), readPersonGroups()]);
+              const people: PlanPerson[] = saved.map((person) => ({
+                id: person.id,
+                name: person.name,
+                goalName: goals.find((goal) => goal.forPersonId === person.id)?.name ?? "",
+              }));
+              await savePlanList((current) => {
+                const ranged = dates ? setPlanDates(current, planId, dates) : setPlanRange(current, planId, start, end);
+                return ranged.map((plan) => (plan.id === planId ? applyPlanDefaults(plan, defaults, people, groups) : plan));
+              });
+            })();
           }}
           onSave={(planId) => {
             void savePlanList((current) => current.map((plan) => (plan.id === planId ? { ...plan, saved: true, updatedAt: Date.now() } : plan)));
@@ -1255,8 +1404,99 @@ export function RecipeApp() {
           onRemovePlan={(planId) => {
             void savePlanList((current) => current.filter((plan) => plan.id !== planId));
           }}
+          onCopyPlans={(planId, rangeDates, pairs) => {
+            const source = plansRef.current.find((plan) => plan.id === planId);
+            if (!source || !rangeDates.length || !pairs.length) return;
+            void savePlanList((current) => [planFromCopy(source, rangeDates, pairs), ...current]);
+            setToast("Copied that plan.");
+          }}
+          onCopyStored={(source, rangeDates, pairs) => {
+            if (!rangeDates.length || !pairs.length) return;
+            void savePlanList((current) => [planFromCopy(source, rangeDates, pairs), ...current]);
+          }}
+          onCopyInto={(targetId, source, pairs) => {
+            if (!pairs.length) return;
+            void savePlanList((current) => copyIntoPlan(current, targetId, source, pairs));
+          }}
+          onSwapDays={(planId, a, b) => {
+            void savePlanList((current) => swapPlanDays(current, planId, a, b));
+          }}
           onRemoveMeal={(planId, date, mealId) => {
             void savePlanList((current) => removeMeal(current, planId, date, mealId));
+          }}
+          onAssignBatch={(planId, batch, date, slot, servings, personId) => {
+            void savePlanList((current) => current.map((plan) => {
+              if (plan.id !== planId) return plan;
+              const recipe = recipeByUid.get(batch.recipeUid);
+              const defined = definedBatchServings(batch, recipe, recipeByUid);
+              const count = servings > 0 ? servings : 1;
+              const meal: PlannedMeal = {
+                id: crypto.randomUUID(),
+                slot,
+                recipeUid: batch.recipeUid,
+                title: batch.title,
+                versionLabel: batch.versionLabel ?? "",
+                ...seatOf(personId),
+                batchId: batch.id,
+                batchServings: count,
+                batchYield: defined,
+                portion: count / defined,
+              };
+              return { ...plan, updatedAt: Date.now(), days: { ...plan.days, [date]: [...(plan.days[date] ?? []), meal] } };
+            }));
+          }}
+          onSaveBatch={(planId, batch, draws) => {
+            void savePlanList((current) => current.map((plan) => (plan.id === planId ? writeBatch(plan, batch, draws, recipeByUid) : plan)));
+          }}
+          onUpdateBatch={(planId, batch) => {
+            void savePlanList((current) => current.map((plan) => {
+              if (plan.id !== planId) return plan;
+              const defined = definedBatchServings(batch, recipeByUid.get(batch.recipeUid), recipeByUid);
+              const days: MealPlan["days"] = {};
+              for (const [date, meals] of Object.entries(plan.days)) {
+                days[date] = meals.map((meal) => {
+                  if (meal.batchId !== batch.id) return meal;
+                  const count = meal.batchServings ?? 1;
+                  return { ...meal, batchYield: defined, portion: count / defined };
+                });
+              }
+              return { ...plan, batches: (plan.batches ?? []).map((item) => (item.id === batch.id ? { ...batch, servings: defined } : item)), days, updatedAt: Date.now() };
+            }));
+          }}
+          onRemoveBatch={(planId, batchId) => {
+            void savePlanList((current) => current.map((plan) => (plan.id === planId ? dropBatch(plan, batchId) : plan)));
+          }}
+          onAddPeople={(planId, dates, personIds, groups, onlyMissing) => {
+            void (async () => {
+              const [saved, goals] = await Promise.all([readSavedPeople(), readSavedMacroGoals()]);
+              const additions: PlanPerson[] = personIds.flatMap((id) => {
+                const person = saved.find((item) => item.id === id);
+                if (!person) return [];
+                const goal = goals.find((item) => item.forPersonId === id);
+                return [{ id: person.id, name: person.name, goalName: goal?.name ?? "" }];
+              });
+              await savePlanList((current) => current.map((plan) => {
+                if (plan.id !== planId) return plan;
+                const withPeople = additions.length ? addPeopleOnDays(plan, dates, additions, Boolean(onlyMissing)) : plan;
+                return groups.length ? addGroupsOnDays(withPeople, dates, groups, Boolean(onlyMissing)) : withPeople;
+              }));
+            })();
+          }}
+          onRemovePeople={(planId, dates, personIds, groups) => {
+            void savePlanList((current) =>
+              current.map((plan) => {
+                if (plan.id !== planId) return plan;
+                return dates.reduce((next, date) => {
+                  let day = next;
+                  for (const id of personIds) day = dropDaySeat(day, date, { kind: "person", id });
+                  for (const group of groups) day = dropDaySeat(day, date, { kind: "group", id: group.id });
+                  return day;
+                }, plan);
+              }),
+            );
+          }}
+          onRemoveSeat={(planId, date, seat) => {
+            void savePlanList((current) => current.map((plan) => (plan.id === planId ? dropDaySeat(plan, date, seat) : plan)));
           }}
           onCopyPersonDays={(planId, dates, fromId, toId, mealIds) => {
             const plan = plansRef.current.find((item) => item.id === planId);
@@ -1272,6 +1512,24 @@ export function RecipeApp() {
             if (!found) setToast("Nothing was checked.");
             else if (!added) setToast(`${to} already has those meals.`);
             else setToast(`Copied ${added} ${added === 1 ? "meal" : "meals"} to ${to}.`);
+          }}
+          onCopyMeal={(planId, mealId, targets: ChipTarget[]) => {
+            let added = 0;
+            void savePlanList((current) => {
+              const result = copyMealToChips(current, planId, mealId, targets);
+              added = result.added;
+              return result.plans;
+            });
+            if (!added) setToast("That meal was not copied.");
+          }}
+          onCopyDays={(fromPlanId, pairs: Array<{ from: string; to: DayCopyTarget }>) => {
+            let copied = 0;
+            void savePlanList((current) => {
+              const result = copyDaysOnto(current, fromPlanId, pairs);
+              copied = result.copied;
+              return result.plans;
+            });
+            if (!copied) setToast("Nothing was copied.");
           }}
           onNotify={setToast}
           onPick={(recipe) => {

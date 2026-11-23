@@ -7,7 +7,7 @@ import { libraryMeats } from "@/lib/plans/grocery";
 import { formatAmount, parseAmount, scaleRatio } from "@/lib/recipes/amount";
 import { formatPublished } from "@/lib/recipes/format";
 import { linesFromRecipe, scaleLines, type EditableLine, type VersionLink } from "@/lib/recipes/lines";
-import { isMeatName } from "@/lib/sourced/meal";
+import { formatMealLine, isMeatName, mealMacros, recipeFromLines } from "@/lib/sourced/meal";
 import { ingredientGroups, macroPills, noteLines, postFallback, stepGroups, videoLinks } from "@/lib/recipes/present";
 import type { Recipe, SlimRecipe } from "@/lib/recipes/types";
 
@@ -33,6 +33,7 @@ export function RecipeDetail({
   onToggleFavorite,
   addAction,
   resumeLines,
+  catalog,
 }: {
   recipe: Recipe;
   slim: SlimRecipe;
@@ -53,8 +54,9 @@ export function RecipeDetail({
   onNotes: (notes: string) => Promise<void>;
   onFit: () => Promise<{ lines: EditableLine[]; note: string } | { error: string }>;
   onToggleFavorite: () => Promise<void>;
-  addAction?: { label: string; onClick: () => void; onApply?: (lines: EditableLine[]) => void } | null;
+  addAction?: { label: string; onClick: () => void; onApply?: (lines: EditableLine[]) => void; onSaveAndAdd?: (lines: EditableLine[]) => void } | null;
   resumeLines?: EditableLine[] | null;
+  catalog: ReadonlyMap<string, Recipe>;
 }) {
   const videos = videoLinks(recipe);
   const groups = ingredientGroups(recipe);
@@ -66,7 +68,7 @@ export function RecipeDetail({
   const fromMeal = Array.isArray(resumeLines);
   const resumed = Boolean(resumeLines?.length);
   const opening = fromMeal ? meatFirst(resumed ? resumeLines : linesFromRecipe(recipe)) : [];
-  const [mode, setMode] = useState<"edit" | "rebalance" | "fit" | null>(fromMeal ? "rebalance" : null);
+  const [mode, setMode] = useState<"edit" | "rebalance" | "fit" | null>(null);
   const [fitNote, setFitNote] = useState("");
   const [draft, setDraft] = useState<EditableLine[]>(() => opening);
   const [snapshot, setSnapshot] = useState<EditableLine[]>(() => (fromMeal ? linesFromRecipe(recipe) : []));
@@ -76,27 +78,34 @@ export function RecipeDetail({
   const [notes, setNotes] = useState(recipe.custom_notes ?? "");
   const [versionName, setVersionName] = useState(slim.versionLabel);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [tool, setTool] = useState<"rebalance" | "edit" | null>(fromMeal ? "rebalance" : null);
+  const [tool, setTool] = useState<"rebalance" | "edit" | null>(null);
   const isVersion = slim.isVersion;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      const typing = event.target instanceof HTMLElement && (event.target.closest("input, textarea, select") != null);
+      if (typing || mode || tool) return;
       if (event.key === "Escape") onClose();
       if (event.key === "ArrowRight" && hasNext) onNext();
       if (event.key === "ArrowLeft" && hasPrev) onPrev();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, onNext, onPrev, hasNext, hasPrev]);
+  }, [onClose, onNext, onPrev, hasNext, hasPrev, mode, tool]);
 
   const onTouchEnd = (event: TouchEvent) => {
-    const startX = Number(event.currentTarget.getAttribute("data-x") || "0");
-    const startY = Number(event.currentTarget.getAttribute("data-y") || "0");
+    const node = event.currentTarget;
+    if (node.getAttribute("data-pinch") === "1" || mode || tool) {
+      node.setAttribute("data-pinch", "0");
+      return;
+    }
+    const startX = Number(node.getAttribute("data-x") || "0");
+    const startY = Number(node.getAttribute("data-y") || "0");
     const touch = event.changedTouches[0];
     if (!touch || !startX) return;
     const dx = touch.clientX - startX;
     const dy = touch.clientY - startY;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    if (Math.abs(dx) < 90 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
     if (dx < 0 && hasNext) onNext();
     if (dx > 0 && hasPrev) onPrev();
   };
@@ -158,10 +167,20 @@ export function RecipeDetail({
       data-x="0"
       data-y="0"
       onTouchStart={(event) => {
+        const node = event.currentTarget;
+        if (event.touches.length > 1) {
+          node.setAttribute("data-pinch", "1");
+          return;
+        }
         const touch = event.touches[0];
         if (!touch) return;
-        event.currentTarget.setAttribute("data-x", String(touch.clientX));
-        event.currentTarget.setAttribute("data-y", String(touch.clientY));
+        const target = event.target;
+        if (target instanceof HTMLElement && target.closest("input, textarea, select")) {
+          node.setAttribute("data-x", "0");
+          return;
+        }
+        node.setAttribute("data-x", String(touch.clientX));
+        node.setAttribute("data-y", String(touch.clientY));
       }}
       onTouchEnd={onTouchEnd}
     >
@@ -266,7 +285,7 @@ export function RecipeDetail({
                     if (next !== slim.versionLabel) void onRename(next);
                   }}
                   aria-label="Version name"
-                  className="mt-1 h-11 w-full rounded-xl border border-line bg-surface px-3 text-sm outline-none focus:border-tomato"
+                  className="mt-1 h-11 w-full rounded-xl border border-line bg-surface px-3 text-base outline-none focus:border-tomato"
                 />
               </label>
             ) : null}
@@ -295,6 +314,7 @@ export function RecipeDetail({
           ) : null}
 
           <section>
+            <LibraryMacros recipe={recipe} catalog={catalog} lines={mode ? draft : null} />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-display text-xl font-semibold">Ingredients</h3>
               {!mode ? (
@@ -494,7 +514,7 @@ export function RecipeDetail({
           ) : null}
         </div>
       </div>
-      {tool && addAction?.onApply ? (
+      {tool && addAction ? (
         <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/60 p-3" role="dialog" aria-modal="true" aria-label="Rebalance and edit">
           <div className="mx-auto flex w-full max-w-lg flex-col gap-3">
             <div className="flex gap-2">
@@ -513,7 +533,8 @@ export function RecipeDetail({
               saving={saving}
               error={saveError}
               hideUpdate
-              newLabel={addAction.label}
+              newLabel={addAction.onApply ? addAction.label : "Save as new version"}
+              saveAndAddLabel={addAction.onSaveAndAdd ? `Save as new version and ${addAction.label.replace(/^Add to /, "add to ").replace(/^Update /, "update ")}` : undefined}
               meatGroups={tool === "rebalance" ? libraryMeats() : undefined}
               searchAdd={tool === "edit"}
               onBase={(id) => {
@@ -541,7 +562,24 @@ export function RecipeDetail({
                 setDraft(meatFirst(next));
               }}
               onSave={() => undefined}
-              onSaveAsNew={() => addAction.onApply?.(draft.filter((row) => row.name.trim()))}
+              onSaveAsNew={() => {
+                if (addAction.onApply) {
+                  addAction.onApply(draft.filter((row) => row.name.trim()));
+                  return;
+                }
+                setSaving(true);
+                setSaveError("");
+                void onSaveAsNew(draft.filter((row) => row.name.trim()), notes, versionName)
+                  .catch((error: unknown) => setSaveError(error instanceof Error ? error.message : "Could not save that version."))
+                  .finally(() => setSaving(false));
+              }}
+              onSaveAndAdd={addAction.onSaveAndAdd ? () => {
+                setSaving(true);
+                setSaveError("");
+                void Promise.resolve(addAction.onSaveAndAdd?.(draft.filter((row) => row.name.trim())))
+                  .catch((error: unknown) => setSaveError(error instanceof Error ? error.message : "Could not save that version."))
+                  .finally(() => setSaving(false));
+              } : undefined}
               onSaveTemplate={() => {
                 setSaving(true);
                 setSaveError("");
@@ -623,6 +661,19 @@ function Nutrition({ recipe }: { recipe: Recipe }) {
       ) : null}
       {nutrition.note && !quotes.length ? <p className="mt-2 text-sm text-muted">{nutrition.note}</p> : null}
     </section>
+  );
+}
+
+function LibraryMacros({ recipe, catalog, lines }: { recipe: Recipe; catalog: ReadonlyMap<string, Recipe>; lines: EditableLine[] | null }) {
+  const basis = lines ? recipeFromLines(recipe, lines) : recipe;
+  const math = mealMacros(basis, catalog);
+  if (!math.macros.calories && !math.macros.netCarbsG && !math.macros.proteinG && !math.macros.fatG) return null;
+  return (
+    <div className="mb-3 rounded-card border border-line bg-surface px-3 py-3">
+      <p className="text-xs font-semibold tracking-wide text-muted uppercase">Whole recipe</p>
+      <p className="mt-1 text-sm font-semibold">{formatMealLine(math.macros)}</p>
+      {math.partial ? <p className="mt-1 text-xs text-muted">Some ingredients are not in the library, so this total skips them.</p> : null}
+    </div>
   );
 }
 
