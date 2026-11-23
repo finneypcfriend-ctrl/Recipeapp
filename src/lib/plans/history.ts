@@ -1,4 +1,4 @@
-import { eachDay, formatRange, mealPerson, twoPeople, type MealPlan, type MealSlot } from "@/lib/plans/model";
+import { formatRange, mealPerson, planDates, twoPeople, type MealPlan, type MealSlot } from "@/lib/plans/model";
 import type { Recipe } from "@/lib/recipes/types";
 import { formatMealLine, mealScale, planMealMath, recipeFromLines, usedIngredientLines } from "@/lib/sourced/meal";
 
@@ -26,10 +26,12 @@ export interface HistoryEntry {
   end: string;
   archivedAt: number;
   days: HistoryDay[];
+  /** Full plan, so an archived range can be copied later. Missing on older archives. */
+  source?: MealPlan;
 }
 
 export function snapshotPlan(plan: MealPlan, catalog: ReadonlyMap<string, Recipe>): HistoryEntry {
-  const days = eachDay(plan.start, plan.end).map((date) => ({
+  const days = planDates(plan).map((date) => ({
     date,
     custom: (plan.days[date] ?? []).some((meal) => Boolean(meal.lines?.length)),
     meals: (plan.days[date] ?? []).map((meal) => {
@@ -59,5 +61,6 @@ export function snapshotPlan(plan: MealPlan, catalog: ReadonlyMap<string, Recipe
     end: plan.end,
     archivedAt: Date.now(),
     days,
+    source: JSON.parse(JSON.stringify(plan)) as MealPlan,
   };
 }

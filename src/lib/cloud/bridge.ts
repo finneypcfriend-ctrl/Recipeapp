@@ -1,8 +1,8 @@
 import type { GroceryList } from "@/lib/plans/grocery";
 import type { MacroLog } from "@/lib/plans/logs";
-import type { MealPlan, SavedMacroGoal, SavedPerson } from "@/lib/plans/model";
-import type { SupplementItem } from "@/lib/plans/supplements";
-import type { PlateTemplate, ToppingRecipe } from "@/lib/plans/toppings";
+import type { MealPlan, PersonGroup, PlanBatch, PlanDefaults, SavedMacroGoal, SavedPerson } from "@/lib/plans/model";
+import type { SupplementItem, SupplementRank } from "@/lib/plans/supplements";
+import type { PlateTemplate, ToppingRecipe, ToppingStars } from "@/lib/plans/toppings";
 
 export interface CloudPatch {
   plans?: MealPlan[];
@@ -11,10 +11,16 @@ export interface CloudPatch {
   /** Every saved goal. `macroGoal` stays the first one, which a one-person plan uses. */
   macroGoals?: SavedMacroGoal[];
   people?: SavedPerson[];
+  peopleGroups?: PersonGroup[];
+  planDefaults?: PlanDefaults;
   macroLogs?: MacroLog[];
   supplements?: SupplementItem[];
+  supplementRanks?: SupplementRank[];
   toppings?: ToppingRecipe[];
   plateTemplates?: PlateTemplate[];
+  meatStars?: string[];
+  toppingStars?: ToppingStars[];
+  leftovers?: PlanBatch[];
 }
 
 let sink: ((patch: CloudPatch) => void) | null = null;

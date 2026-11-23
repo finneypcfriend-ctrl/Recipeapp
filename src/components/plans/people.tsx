@@ -19,7 +19,6 @@ export function useSavedPeople(): SavedPerson[] {
 export function AddPersonButton({ people, onNotify }: { people: SavedPerson[]; onNotify?: (message: string) => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  if (people.length >= 2) return null;
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="h-11 self-start rounded-full border border-line bg-surface px-4 text-sm font-semibold">
